@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeRoute Finder</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <style>
+    body {
+      background: linear-gradient(135deg, #7b4397, #dc2430);
+      font-family: "Poppins", sans-serif;
+      color: white;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0;
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 30px;
+      text-align: center;
+      width: 400px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    h1 { margin-bottom: 10px; }
+    .selectors { display: flex; flex-direction: column; gap: 10px; }
+
+    select, button {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 15px;
+    }
+
+    button {
+      background-color: #28a745;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover { background-color: #218838; }
+
+    #result { margin-top: 20px; font-size: 16px; }
+    #map { height: 300px; margin-top: 20px; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚦 SafeRoute Finder</h1>
+    <p>Select your <b>Source</b> and <b>Destination</b> to get the safest route.</p>
+
+    <div class="selectors">
+      <select id="from"></select>
+      <select id="to"></select>
+      <button id="findRoute">Find Route</button>
+    </div>
+
+    <div id="result"></div>
+    <div id="map"></div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const fromSelect = document.getElementById("from");
+    const toSelect = document.getElementById("to");
+    const resultDiv = document.getElementById("result");
+    const btn = document.getElementById("findRoute");
+
+    const places = [
+      { name: "CVR College of Engineering", lat: 17.2542, lon: 78.6801 },
+      { name: "LB Nagar", lat: 17.3410, lon: 78.5520 },
+      { name: "Dilsukhnagar", lat: 17.3685, lon: 78.5249 },
+      { name: "Kothapet", lat: 17.3700, lon: 78.5370 },
+      { name: "Hitech City", lat: 17.4474, lon: 78.3762 },
+      { name: "Gachibowli", lat: 17.4401, lon: 78.3489 },
+      { name: "Miyapur", lat: 17.4973, lon: 78.3570 },
+      { name: "Kompally", lat: 17.5396, lon: 78.4895 }
+    ];
+
+    places.forEach(p => {
+      const opt1 = document.createElement("option");
+      opt1.value = p.name; opt1.textContent = p.name;
+      fromSelect.appendChild(opt1);
+
+      const opt2 = document.createElement("option");
+      opt2.value = p.name; opt2.textContent = p.name;
+      toSelect.appendChild(opt2);
+    });
+
+    const map = L.map("map").setView([17.4, 78.5], 11);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let routeLine;
+    let startMarker, endMarker;
+
+    const legend = L.control({position: "bottomright"});
+    legend.onAdd = function(map) {
+      const div = L.DomUtil.create("div", "info legend");
+      div.style.background = "white";
+      div.style.padding = "10px";
+      div.style.borderRadius = "8px";
+      div.style.color = "black";
+      div.innerHTML = "<b>Risk Level</b><br>" +
+                      '<span style="color:lightgreen;">● Low</span><br>' +
+                      '<span style="color:orange;">● Medium</span><br>' +
+                      '<span style="color:red;">● High</span>';
+      return div;
+    };
+    legend.addTo(map);
+
+    function getCurvePoints(fromPlace, toPlace) {
+      // Simple curve: midpoint with slight offset
+      const latMid = (fromPlace.lat + toPlace.lat)/2 + 0.01; 
+      const lonMid = (fromPlace.lon + toPlace.lon)/2 + 0.01;
+      return [
+        [fromPlace.lat, fromPlace.lon],
+        [latMid, lonMid],
+        [toPlace.lat, toPlace.lon]
+      ];
+    }
+
+    btn.addEventListener("click", () => {
+      const fromName = fromSelect.value;
+      const toName = toSelect.value;
+
+      if (!fromName || !toName) {
+        resultDiv.innerHTML = `<p style="color:yellow;">Please select both source and destination!</p>`;
+        return;
+      }
+      if (fromName === toName) {
+        resultDiv.innerHTML = `<p style="color:yellow;">Source and destination cannot be same!</p>`;
+        return;
+      }
+
+      const fromPlace = places.find(p => p.name === fromName);
+      const toPlace = places.find(p => p.name === toName);
+
+      const riskLevel = ["Low","Medium","High"][Math.floor(Math.random()*3)];
+      const route = {
+        from: fromName,
+        to: toName,
+        distance: `${(Math.random() * 15 + 2).toFixed(1)} km`,
+        riskLevel,
+        estimatedTime: `${Math.floor(Math.random()*30+10)} mins`
+      };
+
+      resultDiv.innerHTML = `
+        <h3>Route Details</h3>
+        <p><b>From:</b> ${route.from}</p>
+        <p><b>To:</b> ${route.to}</p>
+        <p><b>Distance:</b> ${route.distance}</p>
+        <p><b>Estimated Time:</b> ${route.estimatedTime}</p>
+        <p><b>Risk Level:</b> 
+          <span style="color:${riskLevel==="Low"?"lightgreen":riskLevel==="Medium"?"orange":"red"}">
+            ${riskLevel}
+          </span>
+        </p>
+      `;
+
+      if (routeLine) map.removeLayer(routeLine);
+      if (startMarker) map.removeLayer(startMarker);
+      if (endMarker) map.removeLayer(endMarker);
+
+      startMarker = L.marker([fromPlace.lat, fromPlace.lon]).addTo(map)
+        .bindPopup(`<b>Start:</b> ${fromPlace.name}`).openPopup();
+      endMarker = L.marker([toPlace.lat, toPlace.lon]).addTo(map)
+        .bindPopup(`<b>End:</b> ${toPlace.name}`).openPopup();
+
+      const points = getCurvePoints(fromPlace, toPlace);
+      const color = riskLevel === "Low" ? "green" :
+                    riskLevel === "Medium" ? "orange" : "red";
+
+      routeLine = L.polyline(points, {color, weight:4, smoothFactor:1}).addTo(map);
+      map.fitBounds(routeLine.getBounds(), {padding: [50,50]});
+    });
+  </script>
+</body>
+</html>
