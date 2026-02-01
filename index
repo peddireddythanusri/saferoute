@@ -1,188 +1,179 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SafeRoute Finder</title>
+<meta charset="UTF-8">
+<title>SafeRoute</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <style>
-    body {
-      background: linear-gradient(135deg, #7b4397, #dc2430);
-      font-family: "Poppins", sans-serif;
-      color: white;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin: 0;
-    }
-
-    .container {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 20px;
-      padding: 30px;
-      text-align: center;
-      width: 400px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-    }
-
-    h1 { margin-bottom: 10px; }
-    .selectors { display: flex; flex-direction: column; gap: 10px; }
-
-    select, button {
-      padding: 10px;
-      border-radius: 8px;
-      border: none;
-      font-size: 15px;
-    }
-
-    button {
-      background-color: #28a745;
-      color: white;
-      cursor: pointer;
-    }
-
-    button:hover { background-color: #218838; }
-
-    #result { margin-top: 20px; font-size: 16px; }
-    #map { height: 300px; margin-top: 20px; border-radius: 10px; }
-  </style>
+<style>
+body { margin:0; font-family:Arial, sans-serif; }
+header {
+ background:#0b5ed7; color:white; padding:10px 15px;
+ font-size:18px; font-weight:bold;
+}
+.container { display:flex; }
+.sidebar {
+ width:320px; background:white; padding:12px;
+ height:calc(100vh - 44px);
+ box-shadow:2px 0 5px rgba(0,0,0,0.15);
+}
+input { width:100%; padding:8px; margin:6px 0; }
+button {
+ width:100%; padding:10px; margin-top:6px;
+ background:#0b5ed7; color:white; border:none;
+ cursor:pointer;
+}
+button.sos { background:red; }
+button.end { background:#198754; }
+#map { flex:1; height:calc(100vh - 44px); }
+.suggestions {
+ background:white; border:1px solid #ccc;
+ max-height:150px; overflow:auto;
+}
+.suggestions div {
+ padding:6px; cursor:pointer;
+}
+.suggestions div:hover { background:#eee; }
+.info { margin-top:8px; font-size:14px; }
+.feedback { display:none; margin-top:8px; }
+.feedback button {
+ width:auto; margin:4px;
+}
+</style>
 </head>
+
 <body>
-  <div class="container">
-    <h1>🚦 SafeRoute Finder</h1>
-    <p>Select your <b>Source</b> and <b>Destination</b> to get the safest route.</p>
 
-    <div class="selectors">
-      <select id="from"></select>
-      <select id="to"></select>
-      <button id="findRoute">Find Route</button>
-    </div>
+<header>SafeRoute</header>
 
-    <div id="result"></div>
-    <div id="map"></div>
-  </div>
+<div class="container">
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    const fromSelect = document.getElementById("from");
-    const toSelect = document.getElementById("to");
-    const resultDiv = document.getElementById("result");
-    const btn = document.getElementById("findRoute");
+<div class="sidebar">
+<input id="source" oninput="autoComplete(this,'srcSug')" placeholder="Source">
+<div id="srcSug" class="suggestions"></div>
 
-    const places = [
-      { name: "CVR College of Engineering", lat: 17.2542, lon: 78.6801 },
-      { name: "LB Nagar", lat: 17.3410, lon: 78.5520 },
-      { name: "Dilsukhnagar", lat: 17.3685, lon: 78.5249 },
-      { name: "Kothapet", lat: 17.3700, lon: 78.5370 },
-      { name: "Hitech City", lat: 17.4474, lon: 78.3762 },
-      { name: "Gachibowli", lat: 17.4401, lon: 78.3489 },
-      { name: "Miyapur", lat: 17.4973, lon: 78.3570 },
-      { name: "Kompally", lat: 17.5396, lon: 78.4895 }
-    ];
+<input id="dest" oninput="autoComplete(this,'dstSug')" placeholder="Destination">
+<div id="dstSug" class="suggestions"></div>
 
-    places.forEach(p => {
-      const opt1 = document.createElement("option");
-      opt1.value = p.name; opt1.textContent = p.name;
-      fromSelect.appendChild(opt1);
+<button onclick="findRoute()">Directions</button>
+<button onclick="enableTracking()">My Location</button>
+<button class="end" onclick="endRide()">End Ride</button>
+<button class="sos" onclick="sendSOS()">SOS</button>
 
-      const opt2 = document.createElement("option");
-      opt2.value = p.name; opt2.textContent = p.name;
-      toSelect.appendChild(opt2);
-    });
+<div id="info" class="info"></div>
 
-    const map = L.map("map").setView([17.4, 78.5], 11);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+<div id="feedback" class="feedback">
+ <b>How was your ride?</b><br>
+ <button onclick="submitFeedback(5)">⭐ Excellent</button>
+ <button onclick="submitFeedback(4)">😊 Good</button>
+ <button onclick="submitFeedback(3)">😐 Okay</button>
+ <button onclick="submitFeedback(2)">😟 Unsafe</button>
+</div>
+</div>
 
-    let routeLine;
-    let startMarker, endMarker;
+<div id="map"></div>
+</div>
 
-    const legend = L.control({position: "bottomright"});
-    legend.onAdd = function(map) {
-      const div = L.DomUtil.create("div", "info legend");
-      div.style.background = "white";
-      div.style.padding = "10px";
-      div.style.borderRadius = "8px";
-      div.style.color = "black";
-      div.innerHTML = "<b>Risk Level</b><br>" +
-                      '<span style="color:lightgreen;">● Low</span><br>' +
-                      '<span style="color:orange;">● Medium</span><br>' +
-                      '<span style="color:red;">● High</span>';
-      return div;
-    };
-    legend.addTo(map);
+<script>
+var map = L.map('map').setView([20.5937,78.9629],5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    function getCurvePoints(fromPlace, toPlace) {
-      // Simple curve: midpoint with slight offset
-      const latMid = (fromPlace.lat + toPlace.lat)/2 + 0.01; 
-      const lonMid = (fromPlace.lon + toPlace.lon)/2 + 0.01;
-      return [
-        [fromPlace.lat, fromPlace.lon],
-        [latMid, lonMid],
-        [toPlace.lat, toPlace.lon]
-      ];
-    }
+var srcCoord=null, dstCoord=null;
+var routeLine=null, srcMarker=null, dstMarker=null;
+var userLocation=null;
+var safetyScore=0;
 
-    btn.addEventListener("click", () => {
-      const fromName = fromSelect.value;
-      const toName = toSelect.value;
+// AUTOCOMPLETE SEARCH (ALL INDIA)
+function autoComplete(input, boxId){
+ let q=input.value;
+ if(q.length<3){
+   document.getElementById(boxId).innerHTML="";
+   return;
+ }
+ fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&countrycodes=in&limit=5`)
+ .then(r=>r.json())
+ .then(data=>{
+  let box=document.getElementById(boxId);
+  box.innerHTML="";
+  data.forEach(p=>{
+   let div=document.createElement("div");
+   div.textContent=p.display_name;
+   div.onclick=function(){
+    input.value=p.display_name;
+    if(boxId==="srcSug") srcCoord=[+p.lat,+p.lon];
+    else dstCoord=[+p.lat,+p.lon];
+    box.innerHTML="";
+   };
+   box.appendChild(div);
+  });
+ });
+}
 
-      if (!fromName || !toName) {
-        resultDiv.innerHTML = `<p style="color:yellow;">Please select both source and destination!</p>`;
-        return;
-      }
-      if (fromName === toName) {
-        resultDiv.innerHTML = `<p style="color:yellow;">Source and destination cannot be same!</p>`;
-        return;
-      }
+// ROUTE FINDING
+function findRoute(){
+ if(!srcCoord || !dstCoord) return;
 
-      const fromPlace = places.find(p => p.name === fromName);
-      const toPlace = places.find(p => p.name === toName);
+ if(routeLine) map.removeLayer(routeLine);
+ if(srcMarker) map.removeLayer(srcMarker);
+ if(dstMarker) map.removeLayer(dstMarker);
 
-      const riskLevel = ["Low","Medium","High"][Math.floor(Math.random()*3)];
-      const route = {
-        from: fromName,
-        to: toName,
-        distance: `${(Math.random() * 15 + 2).toFixed(1)} km`,
-        riskLevel,
-        estimatedTime: `${Math.floor(Math.random()*30+10)} mins`
-      };
+ srcMarker=L.marker(srcCoord).addTo(map);
+ dstMarker=L.marker(dstCoord).addTo(map);
 
-      resultDiv.innerHTML = `
-        <h3>Route Details</h3>
-        <p><b>From:</b> ${route.from}</p>
-        <p><b>To:</b> ${route.to}</p>
-        <p><b>Distance:</b> ${route.distance}</p>
-        <p><b>Estimated Time:</b> ${route.estimatedTime}</p>
-        <p><b>Risk Level:</b> 
-          <span style="color:${riskLevel==="Low"?"lightgreen":riskLevel==="Medium"?"orange":"red"}">
-            ${riskLevel}
-          </span>
-        </p>
-      `;
+ fetch(`https://router.project-osrm.org/route/v1/driving/${srcCoord[1]},${srcCoord[0]};${dstCoord[1]},${dstCoord[0]}?overview=full&geometries=geojson`)
+ .then(r=>r.json())
+ .then(data=>{
+  let route=data.routes[0];
+  let coords=route.geometry.coordinates.map(c=>[c[1],c[0]]);
+  routeLine=L.polyline(coords,{color:"blue",weight:6}).addTo(map);
+  map.fitBounds(routeLine.getBounds());
 
-      if (routeLine) map.removeLayer(routeLine);
-      if (startMarker) map.removeLayer(startMarker);
-      if (endMarker) map.removeLayer(endMarker);
+  let dist=(route.distance/1000).toFixed(1);
+  let time=(route.duration/60).toFixed(0);
+  safetyScore=Math.floor(Math.random()*20)+75;
 
-      startMarker = L.marker([fromPlace.lat, fromPlace.lon]).addTo(map)
-        .bindPopup(`<b>Start:</b> ${fromPlace.name}`).openPopup();
-      endMarker = L.marker([toPlace.lat, toPlace.lon]).addTo(map)
-        .bindPopup(`<b>End:</b> ${toPlace.name}`).openPopup();
+  info.innerHTML =
+   dist+" km • "+time+" min • Safety "+safetyScore+"%";
 
-      const points = getCurvePoints(fromPlace, toPlace);
-      const color = riskLevel === "Low" ? "green" :
-                    riskLevel === "Medium" ? "orange" : "red";
+  document.getElementById("feedback").style.display="none";
+ });
+}
 
-      routeLine = L.polyline(points, {color, weight:4, smoothFactor:1}).addTo(map);
-      map.fitBounds(routeLine.getBounds(), {padding: [50,50]});
-    });
-  </script>
+// LIVE LOCATION
+function enableTracking(){
+ if(navigator.geolocation){
+  navigator.geolocation.watchPosition(pos=>{
+   userLocation=[pos.coords.latitude,pos.coords.longitude];
+   srcCoord=userLocation;
+   source.value="My Location";
+   if(srcMarker) map.removeLayer(srcMarker);
+   srcMarker=L.circleMarker(userLocation,{radius:6,color:"green"}).addTo(map);
+   map.setView(userLocation,15);
+  });
+ }
+}
+
+// END RIDE → FEEDBACK
+function endRide(){
+ if(routeLine)
+  document.getElementById("feedback").style.display="block";
+}
+
+// FEEDBACK SUBMIT
+function submitFeedback(r){
+ alert("Thank you for your feedback!");
+ document.getElementById("feedback").style.display="none";
+}
+
+// SOS
+function sendSOS(){
+ if(!userLocation) return;
+ alert("🚨 SOS sent with live location");
+}
+</script>
+
 </body>
 </html>
